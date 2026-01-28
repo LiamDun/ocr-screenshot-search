@@ -4,6 +4,9 @@ screenshots.db
 # User config
 config.json
 
+# PyInstaller
+*.spec
+
 # Python
 __pycache__/
 *.py[cod]

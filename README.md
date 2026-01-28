@@ -17,35 +17,32 @@ A Windows desktop app that uses OCR to extract text from your screenshots, makin
 ## Requirements
 
 - Windows 10/11
-- Python 3.10+
-- [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki)
+- [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) (required for text extraction)
 
 ## Installation
 
-### 1. Install Tesseract OCR
+### Step 1: Install Tesseract OCR (Required)
 
 Download and install Tesseract from: https://github.com/UB-Mannheim/tesseract/wiki
 
-During installation:
-- Use the default installation path, OR
-- Add your custom path to the system PATH environment variable
+During installation, use the default path or add your custom path to the system PATH.
 
-### 2. Clone this repository
+### Step 2: Get Screenshot Search
+
+**Option A: Download the executable (Recommended)**
+
+1. Go to [Releases](https://github.com/yourusername/screenshot-search/releases)
+2. Download `ScreenshotSearch.exe`
+3. Run it - no Python required!
+
+**Option B: Run from source**
+
+Requires Python 3.10+
 
 ```bash
 git clone https://github.com/yourusername/screenshot-search.git
 cd screenshot-search
-```
-
-### 3. Install Python dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-### 4. Run the app
-
-```bash
 python main.py
 ```
 
