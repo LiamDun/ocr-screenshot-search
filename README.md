@@ -33,7 +33,7 @@ During installation, use the default path or add your custom path to the system 
 
 **Option A: Download the executable (Recommended)**
 
-1. Go to [Releases](https://github.com/yourusername/screenshot-search/releases)
+1. Go to [Releases](https://github.com/LiamDun/ocr-screenshot-search/releases)
 2. Download `ScreenshotSearch.exe`
 3. Run it - no Python required!
 
@@ -42,7 +42,7 @@ During installation, use the default path or add your custom path to the system 
 Requires Python 3.10+
 
 ```bash
-git clone https://github.com/yourusername/screenshot-search.git
+git clone https://github.com/LiamDun/ocr-screenshot-search.git
 cd screenshot-search
 pip install -r requirements.txt
 python main.py
