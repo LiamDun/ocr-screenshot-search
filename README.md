@@ -1,4 +1,5 @@
-<img width="698" height="698" alt="ocr-icon" src="https://github.com/user-attachments/assets/b2a15987-44f3-4a1a-938a-d53a33c0860f" />
+<img width="349" height="349" alt="ocr-icon" src="https://github.com/user-attachments/assets/a1ff116a-5ae4-4941-b469-6b09f99fc2dd" />
+
 # Screenshot Search
 
 A Windows desktop app that uses OCR to extract text from your screenshots, making them searchable by content.
