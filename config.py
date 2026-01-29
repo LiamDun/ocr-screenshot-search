@@ -5,6 +5,7 @@ CONFIG_PATH = Path(__file__).parent / "config.json"
 
 DEFAULT_CONFIG = {
     "screenshots_folder": "",
+    "layout": "popup",  # "popup" or "side_panel"
 }
 
 
@@ -44,3 +45,16 @@ def is_configured() -> bool:
     """Check if the app has been configured with a screenshots folder."""
     folder = get_screenshots_folder()
     return bool(folder) and Path(folder).exists()
+
+
+def get_layout() -> str:
+    """Get the layout setting ('popup' or 'side_panel')."""
+    cfg = load_config()
+    return cfg.get("layout", "popup")
+
+
+def set_layout(layout: str):
+    """Set the layout ('popup' or 'side_panel')."""
+    cfg = load_config()
+    cfg["layout"] = layout
+    save_config(cfg)

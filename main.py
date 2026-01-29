@@ -13,8 +13,8 @@ import scanner
 
 # Configuration
 THUMBNAIL_SIZE = (120, 120)
-PREVIEW_SIZE = (400, 400)
-COLUMNS = 3
+PREVIEW_SIZE = (500, 500)
+COLUMNS = 4
 MAX_SNIPPET_LENGTH = 60
 
 
@@ -22,8 +22,6 @@ class ScreenshotSearchApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Screenshot Search")
-        self.root.geometry("1100x700")
-        self.root.minsize(800, 500)
 
         # Store image references to prevent garbage collection
         self.thumbnail_refs = []
@@ -34,6 +32,20 @@ class ScreenshotSearchApp:
 
         # Scanning state
         self.is_scanning = False
+
+        # Layout mode
+        self.layout = config.get_layout()
+
+        # Main content container (will be rebuilt on layout change)
+        self.main_content = None
+
+        # Set window size based on layout
+        if self.layout == "side_panel":
+            self.root.geometry("1100x700")
+            self.root.minsize(900, 500)
+        else:
+            self.root.geometry("800x600")
+            self.root.minsize(600, 400)
 
         # Initialize database
         database.init_db()
@@ -118,9 +130,45 @@ class ScreenshotSearchApp:
             status_frame, variable=self.progress_var, maximum=100, length=200
         )
 
-        # Main content area - paned window for results and preview
+        # Build layout based on setting
+        if self.layout == "side_panel":
+            self.setup_side_panel_layout()
+        else:
+            self.setup_popup_layout()
+
+    def setup_popup_layout(self):
+        """Simple layout - just results grid, click opens popup."""
+        results_container = ttk.Frame(self.root)
+        results_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # Store reference for layout switching
+        self.main_content = results_container
+
+        # Canvas for scrollable results
+        self.canvas = tk.Canvas(results_container)
+        scrollbar = ttk.Scrollbar(results_container, orient=tk.VERTICAL, command=self.canvas.yview)
+
+        self.results_frame = ttk.Frame(self.canvas)
+
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.results_frame, anchor=tk.NW)
+
+        # Bind events for scrolling
+        self.results_frame.bind('<Configure>', self.on_frame_configure)
+        self.canvas.bind('<Configure>', self.on_canvas_configure)
+        self.canvas.bind_all('<MouseWheel>', self.on_mousewheel)
+
+    def setup_side_panel_layout(self):
+        """Split layout with results on left, preview on right."""
         main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # Store reference for layout switching
+        self.main_content = main_pane
 
         # Left side - Results grid
         results_container = ttk.Frame(main_pane)
@@ -176,6 +224,40 @@ class ScreenshotSearchApp:
         text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.text_preview.pack(fill=tk.BOTH, expand=True)
 
+    def switch_layout(self, new_layout):
+        """Switch layout dynamically without restart."""
+        if new_layout == self.layout:
+            return
+
+        # Clear results and references
+        self.thumbnail_refs.clear()
+        self.preview_image_ref = None
+        self.selected_result = None
+
+        # Destroy current main content
+        if self.main_content:
+            self.main_content.destroy()
+
+        # Update layout
+        self.layout = new_layout
+        config.set_layout(new_layout)
+
+        # Adjust window size
+        if self.layout == "side_panel":
+            self.root.geometry("1100x700")
+            self.root.minsize(900, 500)
+        else:
+            self.root.geometry("800x600")
+            self.root.minsize(600, 400)
+
+        # Build new layout
+        if self.layout == "side_panel":
+            self.setup_side_panel_layout()
+        else:
+            self.setup_popup_layout()
+
+        self.status_var.set(f"Layout changed to {new_layout.replace('_', ' ')}")
+
     def load_folders(self):
         """Load folder list into the dropdown."""
         folders = database.get_folders()
@@ -216,9 +298,10 @@ class ScreenshotSearchApp:
             messagebox.showinfo("Search", "Please enter a search term")
             return
 
-        # Clear previous results and preview
+        # Clear previous results
         self.clear_results()
-        self.clear_preview()
+        if self.layout == "side_panel":
+            self.clear_preview()
 
         # Get filter values
         date_filter = self.get_date_filter_value()
@@ -244,6 +327,9 @@ class ScreenshotSearchApp:
         self.thumbnail_refs.clear()
 
     def clear_preview(self):
+        """Clear the side panel preview (only used in side_panel layout)."""
+        if self.layout != "side_panel":
+            return
         self.selected_result = None
         self.preview_image_ref = None
         self.preview_label.configure(image='', text="Click a thumbnail to preview")
@@ -257,6 +343,7 @@ class ScreenshotSearchApp:
     def display_results(self, results):
         row = 0
         col = 0
+        columns = COLUMNS if self.layout == "popup" else 3
 
         for result in results:
             file_path = result['file_path']
@@ -272,7 +359,7 @@ class ScreenshotSearchApp:
                 self.thumbnail_refs.append(thumbnail)
                 thumb_label = ttk.Label(item_frame, image=thumbnail, cursor="hand2")
                 thumb_label.pack()
-                # Single click shows preview, double click opens
+                # Click shows preview (popup or side panel based on layout)
                 thumb_label.bind('<Button-1>', lambda e, r=result: self.show_preview(r))
                 thumb_label.bind('<Double-Button-1>', lambda e, p=file_path: self.open_image(p))
             else:
@@ -295,7 +382,7 @@ class ScreenshotSearchApp:
             snippet_label.pack(pady=(5, 0))
 
             col += 1
-            if col >= COLUMNS:
+            if col >= columns:
                 col = 0
                 row += 1
 
@@ -312,7 +399,83 @@ class ScreenshotSearchApp:
             return None
 
     def show_preview(self, result):
-        """Show the selected screenshot in the preview pane."""
+        """Show preview - either popup or side panel based on layout."""
+        if self.layout == "side_panel":
+            self.show_side_panel_preview(result)
+        else:
+            self.show_preview_popup(result)
+
+    def show_preview_popup(self, result):
+        """Show a popup dialog with the screenshot preview."""
+        file_path = result['file_path']
+
+        # Create popup window
+        popup = tk.Toplevel(self.root)
+        popup.title("Screenshot Preview")
+        popup.geometry("600x700")
+        popup.transient(self.root)
+
+        # Main frame with padding
+        main_frame = ttk.Frame(popup, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Image preview
+        image_frame = ttk.Frame(main_frame)
+        image_frame.pack(fill=tk.BOTH, expand=True)
+
+        try:
+            if Path(file_path).exists():
+                image = Image.open(file_path)
+                image.thumbnail(PREVIEW_SIZE, Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(image)
+                image_label = ttk.Label(image_frame, image=photo)
+                image_label.image = photo  # Keep reference
+                image_label.pack(expand=True)
+            else:
+                ttk.Label(image_frame, text="File not found").pack(expand=True)
+        except Exception as e:
+            ttk.Label(image_frame, text=f"Error loading image: {e}").pack(expand=True)
+
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(10, 5))
+
+        def copy_text():
+            text = result.get('extracted_text', '') or database.get_screenshot_text(file_path)
+            if text:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+                self.status_var.set("Text copied to clipboard!")
+            else:
+                messagebox.showinfo("Copy Text", "No text to copy")
+
+        ttk.Button(btn_frame, text="Copy Text", command=copy_text).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(btn_frame, text="Open Image", command=lambda: self.open_image(file_path)).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(btn_frame, text="Open Folder", command=lambda: os.startfile(Path(file_path).parent)).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(btn_frame, text="Close", command=popup.destroy).pack(side=tk.RIGHT)
+
+        # Text preview
+        text_frame = ttk.LabelFrame(main_frame, text="Extracted Text", padding="5")
+        text_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+
+        text_widget = tk.Text(text_frame, wrap=tk.WORD, height=6)
+        text_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=text_scrollbar.set)
+
+        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        text_widget.pack(fill=tk.BOTH, expand=True)
+
+        # Insert text
+        text = result.get('extracted_text', '') or database.get_screenshot_text(file_path)
+        text_widget.insert('1.0', text if text else "(No text extracted)")
+        text_widget.configure(state=tk.DISABLED)
+
+        # File path label
+        path_label = ttk.Label(main_frame, text=file_path, foreground="gray")
+        path_label.pack(fill=tk.X, pady=(5, 0))
+
+    def show_side_panel_preview(self, result):
+        """Show preview in the side panel."""
         file_path = result['file_path']
         self.selected_result = result
 
@@ -325,7 +488,7 @@ class ScreenshotSearchApp:
         try:
             if Path(file_path).exists():
                 image = Image.open(file_path)
-                image.thumbnail(PREVIEW_SIZE, Image.Resampling.LANCZOS)
+                image.thumbnail((400, 400), Image.Resampling.LANCZOS)
                 self.preview_image_ref = ImageTk.PhotoImage(image)
                 self.preview_label.configure(image=self.preview_image_ref, text='')
             else:
@@ -341,7 +504,7 @@ class ScreenshotSearchApp:
         self.text_preview.configure(state=tk.DISABLED)
 
     def copy_text(self):
-        """Copy extracted text to clipboard."""
+        """Copy extracted text to clipboard (side panel layout)."""
         if not self.selected_result:
             return
 
@@ -354,12 +517,12 @@ class ScreenshotSearchApp:
             messagebox.showinfo("Copy Text", "No text to copy")
 
     def open_selected(self):
-        """Open the selected image in default viewer."""
+        """Open the selected image in default viewer (side panel layout)."""
         if self.selected_result:
             self.open_image(self.selected_result['file_path'])
 
     def open_folder(self):
-        """Open the folder containing the selected image."""
+        """Open the folder containing the selected image (side panel layout)."""
         if self.selected_result:
             file_path = Path(self.selected_result['file_path'])
             if file_path.exists():
@@ -419,7 +582,7 @@ class ScreenshotSearchApp:
         )
         messagebox.showinfo("Scan Complete", message)
         self.update_status()
-        self.load_folders()  # Refresh folder list
+        self.load_folders()
 
     def scan_error(self, error: str):
         self.is_scanning = False
@@ -442,7 +605,7 @@ class ScreenshotSearchApp:
         """Show settings dialog."""
         settings_window = tk.Toplevel(self.root)
         settings_window.title("Settings")
-        settings_window.geometry("500x150")
+        settings_window.geometry("500x200")
         settings_window.resizable(False, False)
         settings_window.transient(self.root)
         settings_window.grab_set()
@@ -452,20 +615,57 @@ class ScreenshotSearchApp:
         folder_frame.pack(fill=tk.X, padx=10, pady=10)
 
         current_folder = config.get_screenshots_folder() or "(Not set)"
-        self.folder_path_var = tk.StringVar(value=current_folder)
+        folder_path_var = tk.StringVar(value=current_folder)
 
-        folder_entry = ttk.Entry(folder_frame, textvariable=self.folder_path_var, width=50, state='readonly')
+        folder_entry = ttk.Entry(folder_frame, textvariable=folder_path_var, width=50, state='readonly')
         folder_entry.pack(side=tk.LEFT, padx=(0, 10))
 
-        browse_btn = ttk.Button(folder_frame, text="Browse...", command=lambda: self.browse_folder(settings_window))
+        def browse_and_update():
+            folder = filedialog.askdirectory(
+                title="Select Screenshots Folder",
+                initialdir=config.get_screenshots_folder() or Path.home()
+            )
+            if folder:
+                config.set_screenshots_folder(folder)
+                folder_path_var.set(folder)
+                self.update_status()
+                self.load_folders()
+
+        browse_btn = ttk.Button(folder_frame, text="Browse...", command=browse_and_update)
         browse_btn.pack(side=tk.LEFT)
+
+        # Layout setting
+        layout_frame = ttk.LabelFrame(settings_window, text="Layout", padding="10")
+        layout_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        layout_var = tk.StringVar(value=self.layout)
+
+        def on_layout_change():
+            new_layout = layout_var.get()
+            if new_layout != self.layout:
+                self.switch_layout(new_layout)
+
+        ttk.Radiobutton(
+            layout_frame,
+            text="Popup preview (click opens a popup with details)",
+            variable=layout_var,
+            value="popup",
+            command=on_layout_change
+        ).pack(anchor=tk.W)
+
+        ttk.Radiobutton(
+            layout_frame,
+            text="Side panel preview (details shown in side panel)",
+            variable=layout_var,
+            value="side_panel",
+            command=on_layout_change
+        ).pack(anchor=tk.W)
 
         # Buttons
         btn_frame = ttk.Frame(settings_window)
         btn_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        close_btn = ttk.Button(btn_frame, text="Close", command=settings_window.destroy)
-        close_btn.pack(side=tk.RIGHT)
+        ttk.Button(btn_frame, text="Close", command=settings_window.destroy).pack(side=tk.RIGHT)
 
     def browse_folder(self, parent_window=None):
         """Open folder browser and save selection."""
