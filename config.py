@@ -6,6 +6,7 @@ CONFIG_PATH = Path(__file__).parent / "config.json"
 DEFAULT_CONFIG = {
     "screenshots_folder": "",
     "layout": "popup",  # "popup" or "side_panel"
+    "theme": "light",  # "light" or "dark"
 }
 
 
@@ -57,4 +58,17 @@ def set_layout(layout: str):
     """Set the layout ('popup' or 'side_panel')."""
     cfg = load_config()
     cfg["layout"] = layout
+    save_config(cfg)
+
+
+def get_theme() -> str:
+    """Get the theme setting ('light' or 'dark')."""
+    cfg = load_config()
+    return cfg.get("theme", "light")
+
+
+def set_theme(theme: str):
+    """Set the theme ('light' or 'dark')."""
+    cfg = load_config()
+    cfg["theme"] = theme
     save_config(cfg)

@@ -17,6 +17,34 @@ PREVIEW_SIZE = (500, 500)
 COLUMNS = 4
 MAX_SNIPPET_LENGTH = 60
 
+# Theme colors
+THEMES = {
+    "light": {
+        "bg": "#f5f5f5",
+        "fg": "#1a1a1a",
+        "entry_bg": "#ffffff",
+        "entry_fg": "#1a1a1a",
+        "canvas_bg": "#ffffff",
+        "text_bg": "#ffffff",
+        "text_fg": "#1a1a1a",
+        "button_bg": "#e0e0e0",
+        "highlight": "#0078d4",
+        "border": "#cccccc",
+    },
+    "dark": {
+        "bg": "#1e1e1e",
+        "fg": "#d4d4d4",
+        "entry_bg": "#2d2d2d",
+        "entry_fg": "#d4d4d4",
+        "canvas_bg": "#252526",
+        "text_bg": "#1e1e1e",
+        "text_fg": "#d4d4d4",
+        "button_bg": "#3c3c3c",
+        "highlight": "#007acc",
+        "border": "#3c3c3c",
+    }
+}
+
 
 class ScreenshotSearchApp:
     def __init__(self, root):
@@ -38,6 +66,12 @@ class ScreenshotSearchApp:
 
         # Main content container (will be rebuilt on layout change)
         self.main_content = None
+
+        # Theme
+        self.theme = config.get_theme()
+
+        # Settings window reference (for theme updates)
+        self.settings_window = None
 
         # Set window size based on layout
         if self.layout == "side_panel":
@@ -61,6 +95,7 @@ class ScreenshotSearchApp:
             )
 
         self.setup_ui()
+        self.apply_theme()
         self.update_status()
         self.load_folders()
 
@@ -256,7 +291,155 @@ class ScreenshotSearchApp:
         else:
             self.setup_popup_layout()
 
+        # Reapply theme to new widgets
+        self.apply_theme()
+
         self.status_var.set(f"Layout changed to {new_layout.replace('_', ' ')}")
+
+    def apply_theme(self):
+        """Apply the current theme to all widgets."""
+        colors = THEMES[self.theme]
+
+        # Configure ttk styles
+        style = ttk.Style()
+
+        # Use clam as base - it's the most customizable
+        style.theme_use('clam')
+
+        # Configure all widget styles
+        style.configure(".",
+                        background=colors["bg"],
+                        foreground=colors["fg"],
+                        fieldbackground=colors["entry_bg"],
+                        troughcolor=colors["entry_bg"],
+                        borderwidth=1)
+
+        style.configure("TFrame", background=colors["bg"])
+        style.configure("TLabel", background=colors["bg"], foreground=colors["fg"])
+
+        # Buttons with better styling
+        style.configure("TButton",
+                        background=colors["button_bg"],
+                        foreground=colors["fg"],
+                        bordercolor=colors["border"],
+                        lightcolor=colors["button_bg"],
+                        darkcolor=colors["button_bg"],
+                        padding=(10, 5),
+                        borderwidth=1,
+                        focuscolor=colors["highlight"])
+        style.map("TButton",
+                  background=[("active", colors["highlight"]),
+                              ("pressed", colors["highlight"]),
+                              ("disabled", colors["bg"])],
+                  foreground=[("active", "#ffffff"),
+                              ("disabled", "#666666")],
+                  bordercolor=[("active", colors["highlight"])])
+
+        # Entry fields
+        style.configure("TEntry",
+                        fieldbackground=colors["entry_bg"],
+                        foreground=colors["entry_fg"],
+                        insertcolor=colors["fg"],
+                        bordercolor=colors["border"],
+                        lightcolor=colors["border"],
+                        darkcolor=colors["border"],
+                        borderwidth=1,
+                        padding=5)
+
+        # Combobox
+        style.configure("TCombobox",
+                        fieldbackground=colors["entry_bg"],
+                        foreground=colors["entry_fg"],
+                        background=colors["button_bg"],
+                        arrowcolor=colors["fg"],
+                        bordercolor=colors["border"],
+                        lightcolor=colors["border"],
+                        darkcolor=colors["border"],
+                        borderwidth=1,
+                        padding=5)
+        style.map("TCombobox",
+                  fieldbackground=[("readonly", colors["entry_bg"]),
+                                   ("disabled", colors["bg"])],
+                  foreground=[("readonly", colors["entry_fg"])],
+                  background=[("readonly", colors["button_bg"])])
+
+        # Radiobutton
+        style.configure("TRadiobutton",
+                        background=colors["bg"],
+                        foreground=colors["fg"],
+                        indicatorbackground=colors["entry_bg"],
+                        indicatorforeground=colors["highlight"])
+        style.map("TRadiobutton",
+                  background=[("active", colors["bg"])],
+                  indicatorbackground=[("selected", colors["highlight"])])
+
+        # LabelFrame
+        style.configure("TLabelframe",
+                        background=colors["bg"],
+                        foreground=colors["fg"],
+                        bordercolor=colors["border"],
+                        lightcolor=colors["border"],
+                        darkcolor=colors["border"])
+        style.configure("TLabelframe.Label",
+                        background=colors["bg"],
+                        foreground=colors["fg"])
+
+        # Scrollbar
+        style.configure("Vertical.TScrollbar",
+                        background=colors["button_bg"],
+                        troughcolor=colors["entry_bg"],
+                        bordercolor=colors["border"],
+                        arrowcolor=colors["fg"],
+                        lightcolor=colors["button_bg"],
+                        darkcolor=colors["button_bg"])
+        style.map("Vertical.TScrollbar",
+                  background=[("active", colors["highlight"]),
+                              ("pressed", colors["highlight"])])
+
+        # Progress bar
+        style.configure("Horizontal.TProgressbar",
+                        background=colors["highlight"],
+                        troughcolor=colors["entry_bg"],
+                        bordercolor=colors["bg"],
+                        lightcolor=colors["highlight"],
+                        darkcolor=colors["highlight"])
+
+        # PanedWindow
+        style.configure("TPanedwindow", background=colors["bg"])
+
+        # Configure root window
+        self.root.configure(bg=colors["bg"])
+
+        # Configure canvas if it exists
+        if hasattr(self, 'canvas'):
+            self.canvas.configure(bg=colors["canvas_bg"], highlightthickness=0)
+
+        # Configure text widgets if they exist (side panel layout)
+        if hasattr(self, 'text_preview') and self.text_preview.winfo_exists():
+            self.text_preview.configure(
+                bg=colors["text_bg"],
+                fg=colors["text_fg"],
+                insertbackground=colors["fg"]
+            )
+
+        # Force update of all widgets
+        self.root.update_idletasks()
+
+    def switch_theme(self, new_theme):
+        """Switch theme dynamically."""
+        if new_theme == self.theme:
+            return
+
+        self.theme = new_theme
+        config.set_theme(new_theme)
+        self.apply_theme()
+
+        # Reopen settings dialog if it was open (to refresh its appearance)
+        if self.settings_window and self.settings_window.winfo_exists():
+            self.settings_window.destroy()
+            self.root.after(50, self.show_settings)
+
+        self.status_var.set(f"Theme changed to {new_theme}")
 
     def load_folders(self):
         """Load folder list into the dropdown."""
@@ -408,12 +591,14 @@ class ScreenshotSearchApp:
     def show_preview_popup(self, result):
         """Show a popup dialog with the screenshot preview."""
         file_path = result['file_path']
+        colors = THEMES[self.theme]
 
         # Create popup window
         popup = tk.Toplevel(self.root)
         popup.title("Screenshot Preview")
         popup.geometry("600x700")
         popup.transient(self.root)
+        popup.configure(bg=colors["bg"])
 
         # Main frame with padding
         main_frame = ttk.Frame(popup, padding="10")
@@ -458,7 +643,14 @@ class ScreenshotSearchApp:
         text_frame = ttk.LabelFrame(main_frame, text="Extracted Text", padding="5")
         text_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
 
-        text_widget = tk.Text(text_frame, wrap=tk.WORD, height=6)
+        text_widget = tk.Text(
+            text_frame,
+            wrap=tk.WORD,
+            height=6,
+            bg=colors["text_bg"],
+            fg=colors["text_fg"],
+            insertbackground=colors["fg"]
+        )
         text_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=text_widget.yview)
         text_widget.configure(yscrollcommand=text_scrollbar.set)
 
@@ -603,12 +795,21 @@ class ScreenshotSearchApp:
 
     def show_settings(self):
         """Show settings dialog."""
-        settings_window = tk.Toplevel(self.root)
-        settings_window.title("Settings")
-        settings_window.geometry("500x200")
-        settings_window.resizable(False, False)
-        settings_window.transient(self.root)
-        settings_window.grab_set()
+        # Close existing settings window if open
+        if self.settings_window and self.settings_window.winfo_exists():
+            self.settings_window.destroy()
+
+        colors = THEMES[self.theme]
+
+        self.settings_window = tk.Toplevel(self.root)
+        self.settings_window.title("Settings")
+        self.settings_window.geometry("500x280")
+        self.settings_window.resizable(False, False)
+        self.settings_window.transient(self.root)
+        self.settings_window.grab_set()
+        self.settings_window.configure(bg=colors["bg"])
+
+        settings_window = self.settings_window  # Local reference for nested functions
 
         # Screenshots folder setting
         folder_frame = ttk.LabelFrame(settings_window, text="Screenshots Folder", padding="10")
@@ -660,6 +861,33 @@ class ScreenshotSearchApp:
             value="side_panel",
             command=on_layout_change
         ).pack(anchor=tk.W)
+
+        # Theme setting
+        theme_frame = ttk.LabelFrame(settings_window, text="Theme", padding="10")
+        theme_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        theme_var = tk.StringVar(value=self.theme)
+
+        def on_theme_change():
+            new_theme = theme_var.get()
+            if new_theme != self.theme:
+                self.switch_theme(new_theme)
+
+        ttk.Radiobutton(
+            theme_frame,
+            text="Light",
+            variable=theme_var,
+            value="light",
+            command=on_theme_change
+        ).pack(side=tk.LEFT, padx=(0, 20))
+
+        ttk.Radiobutton(
+            theme_frame,
+            text="Dark",
+            variable=theme_var,
+            value="dark",
+            command=on_theme_change
+        ).pack(side=tk.LEFT)
 
         # Buttons
         btn_frame = ttk.Frame(settings_window)
